@@ -1,25 +1,22 @@
-import os, urllib.parse, urlib.request, render_template 
+from flask import Flask, render_template
 from app.youtube import youtube_bp
 
-gemini_api_key = "Default_Gemini_API_Key";
 
-def home():
-  return render_template("index.html")
+def create_app():
 
- def create_app():
+    app = Flask(__name__)
 
-   app=flask(_name_)
+    app.register_blueprint(
+        youtube_bp,
+        url_prefix="/youtube"
+    )
 
-app.register_blueprint(youtube_bp, url_prefix"/youtube)
+    @app.route("/")
+    def home():
+        return render_template("index.html")
 
-@app.route("/html")
-def html():
-            return render_template('index.html)
+    @app.route("/html")
+    def html():
+        return render_template("index.html")
 
-return app;                                   
- 
-                       
-
-                       
-                       
-                       
+    return app
