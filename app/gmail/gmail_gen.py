@@ -27,4 +27,9 @@ def generate_email_with_gemini(command):
   output exactly:
 
   subject: <subject>
+  BODY:
+  <email body>
+
+  user command
+  (command)
   
