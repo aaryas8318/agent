@@ -32,4 +32,33 @@ def generate_email_with_gemini(command):
 
   user command
   (command)
-  
+  """
+
+    url = (
+      f"https://generativelanguage.googleapi.com/"
+      f"vibeta/models/{MODEL}:generateContent"
+    )
+
+    payload = {
+      "content":[{"parts": [{"text":prompt}]}],
+      "generatingConfig":{
+        "temperature": 0.7,
+        "maxOutputTokens":800
+      }
+    }
+
+    req = urllib.request.Request(
+      url,
+      data=json.dumps(payload).encode(),
+      headers={
+        "content-tyoe":"application/json",
+        "x-goog-api-key":API_KEY
+      },
+      method="POST"
+    )
+
+    for attempt in range(4):
+      try: 
+        with urllib.request.urlopen(req,timeout=30) as respones :
+          data = json.loads(response.read().decode()
+      
