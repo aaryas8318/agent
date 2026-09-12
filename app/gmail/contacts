@@ -1,0 +1,26 @@
+import re
+
+
+# Swap this out for a real address book / database lookup later.
+# Keys are matched as whole words, case-insensitive, against the
+# voice command.
+CONTACTS = {
+    "john": "john@example.com",
+    "sarah": "sarah@example.com",
+    "boss": "boss@example.com",
+    "mom": "mom@example.com",
+}
+
+
+def lookup_contact(text):
+    """
+    Look for a known contact name in the command text.
+    Returns (name, email) or (None, None) if nothing matches.
+    """
+    lowered = text.lower()
+
+    for name, email in CONTACTS.items():
+        if re.search(r"\b" + re.escape(name) + r"\b", lowered):
+            return name, email
+
+    return None, None
