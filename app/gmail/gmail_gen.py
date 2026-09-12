@@ -9,20 +9,28 @@ import urllib.error
 API_KEY = os.getenv("GEMINI_API_KEY", "")
 MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
-def generate_email_with_gemini(command):
+TONE_INSTRUCTIONS = {
+    "formal": "Write in a formal, professional tone.",
+    "friendly": "Write in a warm, friendly, conversational tone, while staying professional.",
+    "concise": "Write as briefly as possible - a few short sentences, no filler.",
+}
+
+def generate_email_with_gemini(command, tone="formal"):
     if not API_KEY:
         raise RuntimeError("GEMINI_API_KEY is missing.")
+
+    tone_instruction = TONE_INSTRUCTIONS.get(tone, TONE_INSTRUCTIONS["formal"])
 
     prompt = f"""
 You are a professional Gmail email writing assistant.
 
-Convert the user's voice command into a professional email.
+Convert the user's voice command into an email.
 
 Rules:
 - Do not copy the command literally.
 - Do not explain anything.
 - Do not invent names, dates, prices, companies, attachments, or facts.
-- Keep the email natural and concise.
+- {tone_instruction}
 - Include an appropriate greeting and closing.
 
 Output exactly:
@@ -43,7 +51,7 @@ User command:
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.7,
+            "temperature": 0.4 if tone == "concise" else 0.7,
             "maxOutputTokens": 800
         }
     }
