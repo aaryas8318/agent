@@ -49,6 +49,18 @@ body{
 }
 
 
+.top-row{
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    gap:12px;
+}
+
+
 .mic{
 
     width:75px;
@@ -70,6 +82,36 @@ body{
 .mic.listening{
 
     background:#aaa;
+}
+
+
+.tts{
+
+    width:38px;
+
+    height:38px;
+
+    border:1px solid #444;
+
+    border-radius:50%;
+
+    background:#222;
+
+    color:#ccc;
+
+    cursor:pointer;
+
+    font-size:15px;
+}
+
+
+.tts.on{
+
+    background:#666;
+
+    color:white;
+
+    border-color:#666;
 }
 
 
@@ -104,6 +146,16 @@ body{
     color:#aaa;
 
     font-size:13px;
+}
+
+
+.tone-label{
+
+    color:#777;
+
+    font-size:12px;
+
+    margin-top:4px;
 }
 
 
@@ -157,6 +209,44 @@ button.action{
     color:white;
 }
 
+
+.history{
+
+    margin-top:20px;
+
+    text-align:left;
+
+    border-top:1px solid #444;
+
+    padding-top:10px;
+}
+
+
+.history-title{
+
+    font-size:12px;
+
+    color:#777;
+
+    margin-bottom:6px;
+}
+
+
+.history-item{
+
+    font-size:13px;
+
+    color:#aaa;
+
+    padding:3px 0;
+
+    white-space:nowrap;
+
+    overflow:hidden;
+
+    text-overflow:ellipsis;
+}
+
 </style>
 
 </head>
@@ -176,12 +266,24 @@ button.action{
 </p>
 
 
-<button
-    id="mic"
-    class="mic"
->
-    🎙️
-</button>
+<div class="top-row">
+
+    <button
+        id="mic"
+        class="mic"
+    >
+        🎙️
+    </button>
+
+    <button
+        id="tts"
+        class="tts"
+        title="Toggle voice replies"
+    >
+        🔈
+    </button>
+
+</div>
 
 
 <div
@@ -225,6 +327,12 @@ button.action{
     ></textarea>
 
 
+    <div
+        id="toneLabel"
+        class="tone-label"
+    ></div>
+
+
     <button
         id="open"
         class="action primary"
@@ -240,6 +348,19 @@ button.action{
         Regenerate
     </button>
 
+
+</div>
+
+
+<!-- Command history -->
+
+<div class="history">
+
+    <div class="history-title">
+        Recent commands
+    </div>
+
+    <div id="historyList"></div>
 
 </div>
 
@@ -261,6 +382,10 @@ const $ =
 
 const mic =
     $("mic");
+
+
+const ttsBtn =
+    $("tts");
 
 
 const status =
@@ -287,6 +412,14 @@ const body =
     $("body");
 
 
+const toneLabel =
+    $("toneLabel");
+
+
+const historyList =
+    $("historyList");
+
+
 
 // --------------------------------------------------
 // SPEECH RECOGNITION
@@ -304,25 +437,92 @@ let listening = false;
 
 
 // --------------------------------------------------
-// COMMAND STATE
+// COMMAND / TONE / HISTORY STATE
 // --------------------------------------------------
 
 let lastCommand = "";
 
-
-// Prevent duplicate email generation
-
-let emailGenerated = false;
-
-
-// Prevent multiple requests at the same time
-
 let generatingEmail = false;
 
-
-// YouTube tab
-
 let youtubeTab = null;
+
+let ttsOn = false;
+
+let currentTone = "formal";
+
+const TONES = ["formal", "friendly", "concise"];
+
+let commandHistory = [];
+
+
+
+// --------------------------------------------------
+// TEXT TO SPEECH
+// --------------------------------------------------
+
+function speak(text){
+
+    if(!ttsOn) return;
+
+    try{
+
+        window.speechSynthesis.cancel();
+
+        const utter =
+            new SpeechSynthesisUtterance(text);
+
+        window.speechSynthesis.speak(utter);
+
+    }
+    catch(e){
+
+        console.log(e);
+    }
+}
+
+
+function setStatus(text, alsoSpeak){
+
+    status.textContent = text;
+
+    if(alsoSpeak) speak(text);
+}
+
+
+ttsBtn.onclick = () => {
+
+    ttsOn = !ttsOn;
+
+    ttsBtn.classList.toggle("on", ttsOn);
+
+    ttsBtn.textContent = ttsOn ? "🔊" : "🔈";
+
+    if(ttsOn) speak("Voice replies on");
+};
+
+
+
+// --------------------------------------------------
+// COMMAND HISTORY
+// --------------------------------------------------
+
+function addHistory(command, type){
+
+    commandHistory.unshift({ command, type });
+
+    commandHistory = commandHistory.slice(0, 5);
+
+    historyList.innerHTML = commandHistory.map(h => {
+
+        const icon =
+            h.type === "email" ? "✉️" :
+            h.type === "youtube" ? "🎵" :
+            "❔";
+
+        return `<div class="history-item">${icon} ${h.command}</div>`;
+
+    }).join("");
+}
 
 
 
@@ -332,8 +532,9 @@ let youtubeTab = null;
 
 if(!SR){
 
-    status.textContent =
-        "Speech recognition unavailable";
+    setStatus(
+        "Speech recognition unavailable"
+    );
 
     mic.disabled = true;
 
@@ -365,8 +566,9 @@ else{
             "listening"
         );
 
-        status.textContent =
-            "Listening...";
+        setStatus(
+            "Listening..."
+        );
 
     };
 
@@ -392,9 +594,9 @@ else{
             "listening"
         );
 
-        status.textContent =
-            "Voice error: " +
-            e.error;
+        setStatus(
+            "Voice error: " + e.error
+        );
 
     };
 
@@ -410,8 +612,9 @@ else{
 
         if(!text){
 
-            status.textContent =
-                "No command detected";
+            setStatus(
+                "No command detected"
+            );
 
             return;
 
@@ -466,11 +669,6 @@ else{
 // create
 // email
 //
-// Examples:
-//
-// "create email for my boss"
-// "create an email for my manager"
-//
 // --------------------------------------------------
 
 function isGmail(command){
@@ -495,22 +693,6 @@ function isGmail(command){
 // --------------------------------------------------
 // YOUTUBE KEYWORD DETECTION
 // --------------------------------------------------
-//
-// YouTube requires:
-//
-// play
-//
-// OR
-//
-// song
-//
-// Examples:
-//
-// "play believer"
-// "play a song"
-// "song believer"
-//
-// --------------------------------------------------
 
 function isYouTube(command){
 
@@ -530,10 +712,6 @@ function isYouTube(command){
 async function processCommand(command){
 
 
-    // ----------------------------------------------
-    // CHECK COMMAND TYPE
-    // ----------------------------------------------
-
     const gmail =
         isGmail(command);
 
@@ -543,217 +721,148 @@ async function processCommand(command){
 
 
 
-    // ----------------------------------------------
-    // GMAIL COMMAND
-    // ----------------------------------------------
-
     if(gmail){
 
-        // Prevent duplicate generation
+        addHistory(command, "email");
 
-        if(generatingEmail){
-
-            status.textContent =
-                "Email is already being generated...";
-
-            return;
-
-        }
-
-
-        // Prevent the same command from generating
-        // another email
-
-        if(
-            emailGenerated &&
-            command === lastCommand
-        ){
-
-            status.textContent =
-                "Email already generated.";
-
-            return;
-
-        }
-
-
-        generatingEmail = true;
-
-
-        status.textContent =
-            "Generating email...";
-
-
-        try{
-
-
-            const response =
-                await fetch(
-                    "/agent",
-                    {
-
-                        method:"POST",
-
-                        headers:{
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body:
-                            JSON.stringify({
-                                command:command
-                            })
-
-                    }
-                );
-
-
-
-            const data =
-                await response.json();
-
-
-
-            if(
-                !response.ok ||
-                !data.success
-            ){
-
-                throw Error(
-                    data.message ||
-                    "Email request failed"
-                );
-
-            }
-
-
-
-            // Show ONE generated email
-
-            showEmail(
-                data
-            );
-
-
-            emailGenerated = true;
-
-
-        }
-        catch(error){
-
-            console.error(
-                error
-            );
-
-
-            status.textContent =
-                error.message ||
-                "Email generation failed";
-
-        }
-        finally{
-
-            generatingEmail = false;
-
-        }
-
+        await requestEmail(command, "formal");
 
         return;
 
     }
 
-
-
-    // ----------------------------------------------
-    // YOUTUBE COMMAND
-    // ----------------------------------------------
 
     else if(youtube){
 
-        status.textContent =
-            "Finding song...";
+        addHistory(command, "youtube");
 
-
-        try{
-
-
-            const response =
-                await fetch(
-                    "/youtube/play",
-                    {
-
-                        method:"POST",
-
-                        headers:{
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body:
-                            JSON.stringify({
-                                command:command
-                            })
-
-                    }
-                );
-
-
-
-            const data =
-                await response.json();
-
-
-
-            if(
-                !response.ok ||
-                !data.success
-            ){
-
-                throw Error(
-                    data.message ||
-                    "YouTube request failed"
-                );
-
-            }
-
-
-
-            playYouTube(
-                data
-            );
-
-
-        }
-        catch(error){
-
-            console.error(
-                error
-            );
-
-
-            status.textContent =
-                error.message ||
-                "YouTube request failed";
-
-        }
-
+        await requestSong(command);
 
         return;
 
     }
 
 
-
-    // ----------------------------------------------
-    // UNKNOWN COMMAND
-    // ----------------------------------------------
-
     else{
 
-        status.textContent =
-            "Please say 'create email' or 'play song'.";
+        addHistory(command, "other");
+
+        setStatus(
+            "Please say 'create email' or 'play song'.",
+            true
+        );
 
         return;
+
+    }
+
+}
+
+
+
+// --------------------------------------------------
+// EMAIL REQUEST
+//
+// Used for both the first generation and for
+// Regenerate — Regenerate just calls this again
+// with the next tone in rotation.
+// --------------------------------------------------
+
+async function requestEmail(command, tone){
+
+    if(generatingEmail){
+
+        setStatus(
+            "Email is already being generated..."
+        );
+
+        return;
+
+    }
+
+
+    generatingEmail = true;
+
+    currentTone = tone;
+
+    setStatus(
+        tone === "formal"
+            ? "Generating email..."
+            : "Regenerating in a " + tone + " tone..."
+    );
+
+
+    try{
+
+
+        const response =
+            await fetch(
+                "/agent",
+                {
+
+                    method:"POST",
+
+                    headers:{
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify({
+                            command,
+                            tone
+                        })
+
+                }
+            );
+
+
+
+        const data =
+            await response.json();
+
+
+
+        if(
+            !response.ok ||
+            !data.success
+        ){
+
+            throw Error(
+                data.message ||
+                "Email request failed"
+            );
+
+        }
+
+
+        lastCommand =
+            command;
+
+
+        showEmail(
+            data
+        );
+
+
+    }
+    catch(error){
+
+        console.error(
+            error
+        );
+
+
+        setStatus(
+            error.message ||
+            "Email generation failed",
+            true
+        );
+
+    }
+    finally{
+
+        generatingEmail = false;
 
     }
 
@@ -773,8 +882,8 @@ function showEmail(data){
 
 
     recipient.textContent =
-        data.recipient
-        ? "To: " + data.recipient
+        data.recipient_label
+        ? "To: " + data.recipient_label
         : "Recipient not specified";
 
 
@@ -786,12 +895,18 @@ function showEmail(data){
         data.body || "";
 
 
+    toneLabel.textContent =
+        "Tone: " + (data.tone || "formal");
+
+
     editor.style.display =
         "block";
 
 
-    status.textContent =
-        "Email ready. Review or edit it.";
+    setStatus(
+        "Email ready. Review or edit it.",
+        true
+    );
 
 }
 
@@ -836,8 +951,9 @@ $("open").onclick = () => {
 
     if(!win){
 
-        status.textContent =
-            "Please allow popups for this site.";
+        setStatus(
+            "Please allow popups for this site."
+        );
 
     }
 
@@ -846,20 +962,118 @@ $("open").onclick = () => {
 
 
 // --------------------------------------------------
-// REGENERATE BUTTON
-// --------------------------------------------------
+// REGENERATE
 //
-// No automatic second generation.
-//
-// Clicking this button also does NOT call /agent.
+// Calls Gemini again with the next tone in rotation
+// (formal -> friendly -> concise -> formal ...).
 // --------------------------------------------------
 
 $("regen").onclick = () => {
 
-    status.textContent =
-        "Email already generated. Edit the existing email.";
+    if(!lastCommand){
+
+        setStatus(
+            "Nothing to regenerate yet."
+        );
+
+        return;
+
+    }
+
+
+    const nextTone =
+        TONES[
+            (TONES.indexOf(currentTone) + 1) %
+            TONES.length
+        ];
+
+
+    requestEmail(
+        lastCommand,
+        nextTone
+    );
 
 };
+
+
+
+// --------------------------------------------------
+// YOUTUBE REQUEST
+// --------------------------------------------------
+
+async function requestSong(command){
+
+    setStatus(
+        "Finding song..."
+    );
+
+
+    try{
+
+
+        const response =
+            await fetch(
+                "/youtube/play",
+                {
+
+                    method:"POST",
+
+                    headers:{
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify({
+                            command:command
+                        })
+
+                }
+            );
+
+
+
+        const data =
+            await response.json();
+
+
+
+        if(
+            !response.ok ||
+            !data.success
+        ){
+
+            throw Error(
+                data.message ||
+                "YouTube request failed"
+            );
+
+        }
+
+
+
+        playYouTube(
+            data
+        );
+
+
+    }
+    catch(error){
+
+        console.error(
+            error
+        );
+
+
+        setStatus(
+            error.message ||
+            "YouTube request failed",
+            true
+        );
+
+    }
+
+}
 
 
 
@@ -892,8 +1106,10 @@ function playYouTube(data){
     }
 
 
-    status.textContent =
-        "Playing";
+    setStatus(
+        "Playing",
+        true
+    );
 
 }
 
