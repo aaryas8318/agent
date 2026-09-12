@@ -13,6 +13,9 @@ from app.gmail import (
 from app.youtube import youtube_bp
 
 
+VALID_TONES = ("formal", "friendly", "concise")
+
+
 def create_app():
 
     app = Flask(__name__)
@@ -66,6 +69,14 @@ def create_app():
                 ""
             ).strip()
 
+            tone = data.get(
+                "tone",
+                "formal"
+            )
+
+            if tone not in VALID_TONES:
+                tone = "formal"
+
 
             if not command:
 
@@ -83,13 +94,14 @@ def create_app():
                 }), 400
 
 
-            recipient = extract_email(
+            recipient, recipient_label = extract_email(
                 command
             )
 
 
             email = generate_email_with_gemini(
-                command
+                command,
+                tone=tone
             )
 
 
@@ -101,7 +113,11 @@ def create_app():
 
                 "email_generated": True,
 
+                "tone": tone,
+
                 "recipient": recipient,
+
+                "recipient_label": recipient_label,
 
                 "subject": email["subject"],
 
